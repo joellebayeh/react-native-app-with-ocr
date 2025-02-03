@@ -1,24 +1,13 @@
 //  the Home screen is only accessible by the user that have already an account
 // (cannot able to see this screen without token)
 
-import React, { useState, useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Image,
-  Alert,
-  Platform,
-} from "react-native";
-import { Camera, CameraType, CameraView } from "expo-camera";
-import * as ImageManipulator from "expo-image-manipulator";
-import TextRecognition from "react-native-text-recognition";
+import React, { useState, useEffect } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-// import Tesseract from "tesseract.js";
 import AlertModal from "../components/AlertModal";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../navigation/RootNavigator";
+import Tesseract from "tesseract.js";
 
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, "Home">;
 
@@ -27,62 +16,56 @@ type Props = {
 };
 
 const HomeScreen: React.FC<Props> = ({ navigation }) => {
-  // for the camera
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const cameraRef = useRef<Camera | null>(null);
-  
-  const [extractedText, setExtractedText] = useState<string>(""); // extract text state
+  const [image, setImage] = useState(null); // image that user choose/take
+  const [text, setText] = useState(""); // extracted text
 
   // for the custom alert modal
-  const [modalVisible, setModalVisible] = useState(false); 
+  const [modalVisible, setModalVisible] = useState(false);
   const [modalTextProps, setModalTextProps] = useState({
     title: "",
     message: "",
   });
-  
 
-  useEffect(() => {
-    (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === "granted");
-      if (status !== "granted") {
-        setModalTextProps({
-          title: "Permission Required",
-          message: "Camera permission is required to use this feature.",
-        });
-        setModalVisible(true);
-      }
-    })();
-  }, []);
+  const pickImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
 
-  const takePicture = async () => {
-    if (cameraRef.current) {
-      const photo = await cameraRef.current.takePictureAsync();
-      setCapturedImage(photo.uri);
-      setIsCameraOpen(false);
-      processImage(photo.uri);
+    if (!result.canceled) {
+      setImage(result.assets[0].uri);
     }
   };
 
-  const processImage = async (imageUri: string) => {
-    try {
-      const resizedImage = await ImageManipulator.manipulateAsync(
-        imageUri,
-        [{ resize: { width: 800 } }],
-        { base64: true }
-      );
-      const recognizedText = await TextRecognition.recognize(resizedImage.uri);
-      setExtractedText(recognizedText.toString() || "No text found");
-    } catch (error) {
-      // you can display the error message that you got
-      setModalTextProps({
-        title: "Error",
-        message: "Failed to process image. Try again.",
-      });
-      // setErrorMessage("Failed to process image. Try again.");
-      setModalVisible(true);
+  const openCamera = async () => {
+    let result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      setImage(result.assets[0].uri);
+    }
+  };
+
+  const recognizeText = async () => {
+    if (image) {
+      try {
+        const { data } = await Tesseract.recognize(image, "eng");
+        setText(data.text);
+      } catch (error) {
+        // you can display the error message that you got
+        setModalTextProps({
+          title: "Error",
+          message: "Failed to process image. Try again.",
+        });
+        // setErrorMessage("Failed to process image. Try again.");
+        setModalVisible(true);
+      }
     }
   };
 
@@ -100,44 +83,35 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
+  useEffect(() => {
+    recognizeText();
+  }, [image]);
+
   return (
     <View style={styles.container}>
-      {/* Logout Button */}
+      {/* Logout button */}
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <Text style={styles.logoutText}>Logout</Text>
       </TouchableOpacity>
 
-      {isCameraOpen && hasPermission ? (
-        <CameraView
-          style={styles.camera}
-          ref={(ref) => (cameraRef.current = ref)}
-        >
-          <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
-            <Text style={styles.captureText}>📸</Text>
-          </TouchableOpacity>
-        </CameraView>
-      ) : (
-        <>
-          <Text style={styles.title}>Extracted Text</Text>
-          <Text style={styles.extractedText}>
-            {extractedText || "No text yet"}
-          </Text>
+      {/* Title */}
+      <Text style={styles.title}>Extracted Text</Text>
 
-          {capturedImage && (
-            <Image
-              source={{ uri: capturedImage }}
-              style={styles.imagePreview}
-            />
-          )}
+      {/* Pick Image from your device */}
+      <TouchableOpacity style={styles.button} onPress={pickImage}>
+        <Text style={styles.buttonText}>Pick Image</Text>
+      </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.button}
-            onPress={() => setIsCameraOpen(true)}
-          >
-            <Text style={styles.buttonText}>Open Camera</Text>
-          </TouchableOpacity>
-        </>
-      )}
+      {/* Open your camera to take an image */}
+      <TouchableOpacity style={styles.button} onPress={openCamera}>
+        <Text style={styles.buttonText}>Open Camera</Text>
+      </TouchableOpacity>
+
+      {/* Display the Image that you take/choose */}
+      {image && <Image source={{ uri: image }} style={styles.imagePreview} />}
+
+      {/* the Extract text */}
+      <Text style={styles.extractedText}>{text || "No text yet"}</Text>
 
       {/* Alert Modal Component*/}
       <AlertModal
@@ -167,7 +141,7 @@ const styles = StyleSheet.create({
   extractedText: {
     fontSize: 18,
     color: "#FFFFFF",
-    marginBottom: 20,
+    marginVertical: 20,
   },
   button: {
     backgroundColor: "#3D5AFE",

@@ -1,19 +1,15 @@
-// this login screen is accessible by all visitors (without authorization), while entering with correct 
+// this login screen is accessible by all visitors (without authorization), while entering with correct
 // acess_token, that mean the user is logged in so he should redirect to the home screen
 
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Modal,
-} from "react-native";
-import { StackNavigationProp } from "@react-navigation/stack";
-import { RootStackParamList } from "../navigation/RootNavigator";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { TextInput } from "react-native-gesture-handler";
+import { Formik } from "formik";
+import * as Yup from "yup";
 import Icon from "react-native-vector-icons/Feather";
 import AlertModal from "../components/AlertModal";
+import { StackNavigationProp } from "@react-navigation/stack";
+import { RootStackParamList } from "../navigation/RootNavigator";
 
 type LoginScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -24,84 +20,104 @@ type Props = {
   navigation: LoginScreenNavigationProp;
 };
 
+// Setup validation schema using Yup
+const LoginSchema = Yup.object().shape({
+  username: Yup.string().required("Username is required"),
+  password: Yup.string().required("Password is required"),
+});
+
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [secureText, setSecureText] = useState(true); // password value visibility
   const [modalVisible, setModalVisible] = useState(false); // For the custom alert modal
 
-  // Check if both username and password are filled
-  const isFormValid = username.trim().length > 0 && password.trim().length > 0;
-
-  const handleLogin = () => {
-    // here we should call an post api that take thoose creadentials, if this user already existing return
-    // the access_token and refresh_token than redirect him to the Home screen, else user should get an
-    // error message that can be displayed with this AlertModal component
-    if (username.trim() === "testuser" && password.trim() === "password") {
-      navigation.navigate("Home");
-    } else {
-      setModalVisible(true); // Show custom alert if credentials are incorrect
-    }
-  };
-
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Welcome Back</Text>
+    <Formik
+      initialValues={{ username: "", password: "" }}
+      validationSchema={LoginSchema}
+      onSubmit={(values, { setSubmitting }) => {
+        // here we should call an post api that take thoose creadentials, if this user already existing return
+        // the access_token and refresh_token than redirect him to the Home screen, else user should get an
+        // error message that can be displayed with this AlertModal component
+        if (
+          values.username.trim() === "User" &&
+          values.password.trim() === "Password"
+        ) {
+          navigation.navigate("Home");
+        } else {
+          setModalVisible(true); // Show custom alert if credentials are incorrect
+          setSubmitting(false);
+        }
+      }}
+    >
+      {({ handleChange, handleSubmit, values, errors, touched }) => (
+        <View style={styles.container}>
+          <Text style={styles.title}>Welcome Back</Text>
 
-      {/* username input */}
-      <TextInput
-        style={styles.input}
-        placeholder="Username"
-        placeholderTextColor="#A1A1A1"
-        value={username}
-        onChangeText={setUsername}
-        autoCapitalize="none"
-      />
-
-      {/* password input */}
-      <View style={styles.passwordContainer}>
-        <TextInput
-          style={styles.passwordInput}
-          placeholder="Password"
-          placeholderTextColor="#A1A1A1"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry={secureText}
-        />
-        <TouchableOpacity
-          onPress={() => setSecureText(!secureText)}
-          style={styles.icon}
-        >
-          <Icon
-            name={secureText ? "eye" : "eye-off"}
-            size={20}
-            color="#A1A1A1"
+          {/* Username Input */}
+          <TextInput
+            style={styles.input}
+            placeholder="Username"
+            placeholderTextColor="#A1A1A1"
+            onChangeText={handleChange("username")}
+            value={values.username}
+            autoCapitalize="none"
           />
-        </TouchableOpacity>
-      </View>
+          {touched.username && errors.username && (
+            <Text style={styles.errorText}>{errors.username}</Text>
+          )}
 
-      {/* login button should be accessible only if user fill both of inputs */}
-      <TouchableOpacity
-        style={[styles.loginButton, !isFormValid && styles.disabledButton]} // Disable styling
-        onPress={handleLogin}
-        disabled={!isFormValid} // Disable button
-      >
-        <Text style={styles.loginButtonText}>Login</Text>
-      </TouchableOpacity>
+          {/* Password Input */}
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Password"
+              placeholderTextColor="#A1A1A1"
+              onChangeText={handleChange("password")}
+              value={values.password}
+              secureTextEntry={secureText}
+            />
+            <TouchableOpacity
+              onPress={() => setSecureText(!secureText)}
+              style={styles.icon}
+            >
+              <Icon
+                name={secureText ? "eye" : "eye-off"}
+                size={20}
+                color="#A1A1A1"
+              />
+            </TouchableOpacity>
+          </View>
+          {touched.password && errors.password && (
+            <Text style={styles.errorText}>{errors.password}</Text>
+          )}
 
-      {/* this hint just for testing purposes */}
-      <Text style={styles.hint}>
-        Hint: Username is 'testuser', Password is 'password'.
-      </Text>
+          {/* Login Button */}
+          <TouchableOpacity
+            style={[
+              styles.loginButton,
+              (!values.username || !values.password) && styles.disabledButton,
+            ]}
+            onPress={() => handleSubmit()}
+            disabled={!values.username || !values.password}
+          >
+            <Text style={styles.loginButtonText}>Login</Text>
+          </TouchableOpacity>
 
-      {/* Alert Modal Component*/}
-      <AlertModal
-        visible={modalVisible}
-        title="Invalid Credentials"
-        message="The username or password is incorrect. Please try again."
-        onClose={() => setModalVisible(false)}
-      />
-    </View>
+          {/* this hint just for testing purposes */}
+          <Text style={styles.hint}>
+            Hint: Username is 'User', Password is 'Password'.
+          </Text>
+
+          {/* Alert Modal Component */}
+          <AlertModal
+            visible={modalVisible}
+            title="Invalid Credentials"
+            message="The username or password is incorrect. Please try again."
+            onClose={() => setModalVisible(false)}
+          />
+        </View>
+      )}
+    </Formik>
   );
 };
 
@@ -171,6 +187,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#A1A1A1",
     fontStyle: "italic",
+  },
+  errorText: {
+    color: "red",
+    fontSize: 10,
   },
 });
 
